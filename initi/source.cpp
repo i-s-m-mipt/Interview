@@ -47,6 +47,11 @@ namespace initi
 
 	public:
 
+		std::shared_ptr < Node > search(std::size_t index)
+		{
+			return search(index, m_root);
+		}
+
 		std::shared_ptr < Node > insert(value_t value)
 		{
 			std::shared_ptr < Node > current = m_root;
@@ -61,7 +66,16 @@ namespace initi
 
 				parent = current;
 
-				current = m_comparator(value, current->value) ? current->left : current->right;
+				if (m_comparator(value, current->value))
+				{
+					current = current->left;
+					++(parent->left_count);
+				}
+				else
+				{
+					current = current->right;
+					++(parent->right_count);
+				}
 			}
 
 			auto new_node = std::make_shared < Node > (value, parent);
@@ -87,7 +101,108 @@ namespace initi
 			return new_node;
 		}
 
+		void remove(std::size_t index)
+		{
+			auto node = search(index, m_root);
+
+			if (!result)
+			{
+				throw std::runtime_error("cannot remove node with index " + std::to_string(index));
+			}
+
+			remove(node);
+		}
+
+		void remove(std::shared_ptr < Node > node) 
+		{
+			std::shared_ptr < Node > parent;
+			std::shared_ptr < Node > child;
+
+			if (!node)
+			{
+				return;
+			}
+			
+			if (!node->left || !node->right) 
+			{
+				parent = node;
+			}
+			else 
+			{
+				parent = node->right;
+
+				while (!parent->left)
+				{
+					parent = parent->left;
+				}
+			}
+
+			if (parent->left)
+			{
+				child = parent->left;
+			}
+			else
+			{
+				child = parent->right;
+			}
+				
+			if (child)
+			{
+				child->parent = parent->parent;
+			}
+			
+			if (parent->parent)
+			{
+				if (parent == parent->parent->left)
+				{
+					parent->parent->left = child;
+				}	
+				else
+				{
+					parent->parent->right = child;
+				}
+			}
+			else
+			{
+				m_root = child;
+			}
+
+			if (parent != node)
+			{
+				node->value = parent->value;
+			}
+
+			if (parent->color == Color::BLACK)
+			{
+				remove_verification(child);
+			}
+		}
+
 	private:
+
+		std::shared_ptr < Node > search(std::size_t index, std::shared_ptr < Node > root)
+		{
+			if (root->left_count == index)
+			{
+				return root;
+			}
+
+			if (root->left_count > index)
+			{
+				search(index, root->left);
+			}
+			else
+			{
+				if (root->right)
+				{
+					search(index - root->left_count - 1, root->right);
+				}
+				else
+				{
+					return nullptr;
+				}
+			}
+		}
 
 		void insert_verification(std::shared_ptr < Node > node) 
 		{
@@ -148,11 +263,99 @@ namespace initi
 			m_root->color = Color::BLACK;
 		}
 
+		void remove_verification(std::shared_ptr < Node > node) 
+		{
+			while (node != m_root && node->color == Color::BLACK) 
+			{
+				if (node == node->parent->left) 
+				{
+					auto brother = node->parent->right;
+
+					if (brother->color == Color::RED) 
+					{
+						brother->color = Color::BLACK;
+						node->parent->color = Color::RED;
+
+						rotate_left(node->parent);
+						brother = node->parent->right;
+					}
+					if (brother->left->color == Color::BLACK && brother->right->color == Color::BLACK) 
+					{
+						brother->color = Color::RED;
+
+						node = node->parent;
+					}
+					else 
+					{
+						if (brother->right->color == Color::BLACK) 
+						{
+							brother->left->color = Color::BLACK;
+							brother->color = Color::RED;
+
+							rotate_right(brother);
+							brother = node->parent->right;
+						}
+
+						brother->color = node->parent->color;
+
+						node->parent->color = Color::BLACK;
+						brother->right->color = Color::BLACK;
+
+						rotate_left(node->parent);
+						node = m_root;
+					}
+				}
+				else 
+				{
+					auto brother = node->parent->left;
+
+					if (brother->color == Color::RED) 
+					{
+						brother->color = Color::BLACK;
+						node->parent->color = Color::RED;
+
+						rotate_right(node->parent);
+						brother = node->parent->left;
+					}
+					if (brother->right->color == Color::BLACK && brother->left->color == Color::BLACK) 
+					{
+						brother->color = Color::RED;
+
+						node = node->parent;
+					}
+					else 
+					{
+						if (brother->left->color == Color::BLACK) 
+						{
+							brother->right->color = Color::BLACK;
+							brother->color = Color::RED;
+
+							rotate_left(brother);
+							brother = node->parent->left;
+						}
+
+						brother->color = node->parent->color;
+
+						node->parent->color = Color::BLACK;
+						brother->left->color = Color::BLACK;
+
+						rotate_right(node->parent);
+						node = m_root;
+					}
+				}
+			}
+
+			node->color = Color::BLACK;
+		}
+
 	private:
 
 		void rotate_left(std::shared_ptr < Node > node) 
 		{
 			auto other = node->right;
+
+			node->right_count = other->left_count;
+			other->left_count = node->right_count + 1 + node->left_count;
 
 			node->right = other->left;
 
@@ -187,6 +390,9 @@ namespace initi
 		void rotate_right(std::shared_ptr < Node > node) 
 		{
 			auto other = node->left;
+
+			node->left_count = other->right_count;
+			other->right_count = node->left_count + 1 + node->right_count;
 
 			node->left = other->right;
 
