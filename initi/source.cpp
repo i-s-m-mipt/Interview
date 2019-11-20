@@ -7,10 +7,6 @@ namespace initi
 {
 	class Container // based on RB tree
 	{
-	private:
-
-
-
 	public:
 
 	private:
