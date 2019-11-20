@@ -89,6 +89,137 @@ namespace initi
 
 	private:
 
+		void insert_verification(std::shared_ptr < Node > node) 
+		{
+			while (node != m_root && node->parent->color == Color::RED) 
+			{
+				if (node->parent == node->parent->parent->left) 
+				{
+					auto uncle = node->parent->parent->right;
+
+					if (uncle->color == Color::RED) 
+					{
+						node->parent->color = Color::BLACK;
+						uncle->color = Color::BLACK;
+						node->parent->parent->color = Color::RED;
+						node = node->parent->parent;
+					}
+					else 
+					{
+						if (node == node->parent->right) 
+						{
+							node = node->parent;
+							rotate_left(node);
+						}
+
+						node->parent->color = Color::BLACK;
+						node->parent->parent->color = Color::RED;
+
+						rotate_right(node->parent->parent);
+					}
+				}
+				else 
+				{
+					auto uncle = node->parent->parent->left;
+
+					if (uncle->color == Color::RED) 
+					{
+						node->parent->color = Color::BLACK;
+						uncle->color = Color::BLACK;
+						node->parent->parent->color = Color::RED;
+						node = node->parent->parent;
+					}
+					else 
+					{
+						if (node == node->parent->left) 
+						{
+							node = node->parent;
+							rotate_right(node);
+						}
+
+						node->parent->color = Color::BLACK;
+						node->parent->parent->color = Color::RED;
+
+						rotate_left(node->parent->parent);
+					}
+				}
+			}
+
+			m_root->color = Color::BLACK;
+		}
+
+	private:
+
+		void rotate_left(std::shared_ptr < Node > node) 
+		{
+			auto other = node->right;
+
+			node->right = other->left;
+
+			if (other->left != nullptr)
+			{
+				other->left->parent = node;
+			}
+
+			other->parent = node->parent;
+
+			if (node->parent) 
+			{
+				if (node == node->parent->left)
+				{
+					node->parent->left = other;
+				}
+				else
+				{
+					node->parent->right = other;
+				}
+			}
+			else 
+			{
+				m_root = other;
+			}
+
+			other->left = node;
+
+			node->parent = other;
+		}
+
+		void rotate_right(std::shared_ptr < Node > node) 
+		{
+			auto other = node->left;
+
+			node->left = other->right;
+
+			if (other->right != nullptr)
+			{
+				other->right->parent = node;
+			}
+
+			other->parent = node->parent;
+
+			if (node->parent) 
+			{
+				if (node == node->parent->right)
+				{
+					node->parent->right = other;
+				}
+				else
+				{
+					node->parent->left = other;
+				}	
+			}
+			else 
+			{
+				m_root = other;
+			}
+
+			other->right = node;
+
+			node->parent = other;
+		}
+
+	private:
+
 		comparator_t m_comparator;
 
 		std::shared_ptr < Node > m_root = nullptr;
