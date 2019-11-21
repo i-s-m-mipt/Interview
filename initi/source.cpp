@@ -11,6 +11,23 @@
 
 namespace initi
 {
+	class initi_exception : public std::exception // for futher development
+	{
+	public:
+
+		explicit initi_exception(const std::string & message) noexcept :
+			std::exception(message.c_str())
+		{}
+
+		explicit initi_exception(const char * const message) noexcept :
+			std::exception(message)
+		{}
+
+		~initi_exception() noexcept = default;
+	};
+
+	// =========================================================================
+
 	template < typename T, typename Compare = std::less < T > >
 	class Container
 	{
@@ -71,20 +88,7 @@ namespace initi
 
 	private:
 
-		void uninitialize(std::shared_ptr < Node > root)
-		{
-			if (root->left)
-			{
-				uninitialize(root->left);
-			}
-
-			if (root->right)
-			{
-				uninitialize(root->right);
-			}
-
-			root->parent = nullptr;
-		}
+		void uninitialize(std::shared_ptr < Node > root);
 
 	public:
 
@@ -130,76 +134,11 @@ namespace initi
 			return search(index, m_root);
 		}
 
-		std::shared_ptr < Node > search(std::size_t index, std::shared_ptr < Node > root) const
-		{
-			if (root->left_counter == index)
-			{
-				return root;
-			}
-
-			if (root->left_counter > index)
-			{
-				return search(index, root->left);
-			}
-			else
-			{
-				return search(index - root->left_counter - 1, root->right);
-			}
-		}
+		std::shared_ptr < Node > search(std::size_t index, std::shared_ptr < Node > root) const;
 
 	public:
 
-		std::shared_ptr < Node > insert(key_type key)
-		{
-			std::shared_ptr < Node > current = m_root;
-			std::shared_ptr < Node > parent  = nullptr;
-
-			while (!current->is_leaf()) 
-			{
-				if (key == current->key)
-				{
-					return current;
-				}
-
-				parent = current;
-
-				if (m_comparator(key, current->key))
-				{
-					current = current->left;
-				}
-				else
-				{
-					current = current->right;
-				}
-			}
-
-			auto new_node = std::make_shared < Node > (key, parent);
-
-			new_node->left  = make_leaf(new_node);
-			new_node->right = make_leaf(new_node);
-			
-			if (parent) 
-			{
-				if (m_comparator(key, parent->key))
-				{
-					parent->left = new_node;
-				}
-				else
-				{
-					parent->right = new_node;
-				}
-			}
-			else 
-			{
-				m_root = new_node;
-			}
-
-			increment_counters(new_node);
-
-			insert_verification(new_node);
-
-			return new_node;
-		}
+		std::shared_ptr < Node > insert(key_type key);
 
 		void erase(std::size_t index)
 		{
@@ -218,329 +157,32 @@ namespace initi
 			return std::make_shared < Node > (key_type(), parent, Color::BLACK);
 		}
 
-		void increment_counters(std::shared_ptr < Node > node) const
+		void increment_counters(std::shared_ptr < Node > node) const;
+
+		void decrement_counters(std::shared_ptr < Node > node) const;
+
+		void insert_verification(std::shared_ptr < Node > node);
+
+		void erase_implementation(std::shared_ptr < Node > node);
+
+		void erase_verification(std::shared_ptr < Node > node);
+
+	private:
+
+		void rotate_left(std::shared_ptr < Node > node);
+
+		void rotate_right(std::shared_ptr < Node > node);
+
+	public:
+
+		bool is_valid() const 
 		{
-			if (node == m_root)
-			{
-				return;
-			}
-			else
-			{
-				if (node == node->parent->left)
-				{
-					++node->parent->left_counter;
-				}
-				else
-				{
-					++node->parent->right_counter;
-				}
-
-				increment_counters(node->parent);
-			}
-		}
-
-		void decrement_counters(std::shared_ptr < Node > node) const
-		{
-			if (node == m_root)
-			{
-				return;
-			}
-			else
-			{
-				if (node == node->parent->left)
-				{
-					--node->parent->left_counter;
-				}
-				else
-				{
-					--node->parent->right_counter;
-				}
-
-				decrement_counters(node->parent);
-			}
-		}
-
-		void insert_verification(std::shared_ptr < Node > node) 
-		{
-			while (node != m_root && node->parent->color == Color::RED) 
-			{
-				if (node->parent == node->parent->parent->left) 
-				{
-					if (node->parent->parent->right->color == Color::RED)
-					{
-						node->parent->color                = Color::BLACK;
-						node->parent->parent->right->color = Color::BLACK;
-
-						node->parent->parent->color = Color::RED;
-
-						node = node->parent->parent;
-					}
-					else
-					{
-						if (node == node->parent->right)
-						{
-							node = node->parent;
-							rotate_left(node);
-						}
-
-						node->parent->color         = Color::BLACK;
-						node->parent->parent->color = Color::RED;
-
-						rotate_right(node->parent->parent);
-					}
-				}
-				else 
-				{
-					if (node->parent->parent->left->color == Color::RED)
-					{
-						node->parent->color               = Color::BLACK;
-						node->parent->parent->left->color = Color::BLACK;
-
-						node->parent->parent->color = Color::RED;
-
-						node = node->parent->parent;
-					}
-					else
-					{
-						if (node == node->parent->left)
-						{
-							node = node->parent;
-							rotate_right(node);
-						}
-
-						node->parent->color         = Color::BLACK;
-						node->parent->parent->color = Color::RED;
-
-						rotate_left(node->parent->parent);
-					}
-				}
-			}
-
-			m_root->color = Color::BLACK;
-		}
-
-		void erase_implementation(std::shared_ptr < Node > node)
-		{
-			std::shared_ptr < Node > parent;
-			std::shared_ptr < Node > child;
-
-			if (node->left->is_leaf() || node->right->is_leaf())
-			{
-				parent = node;
-			}
-			else
-			{
-				parent = node->right;
-
-				while (!parent->left->is_leaf())
-				{
-					parent = parent->left;
-				}
-			}
-
-			child = (!parent->left->is_leaf() ? parent->left : parent->right);
-			
-			child->parent = parent->parent;
-
-			if (parent->parent)
-			{
-				if (parent == parent->parent->left)
-				{
-					parent->parent->left = child;
-				}
-				else
-				{
-					parent->parent->right = child;
-				}
-
-				decrement_counters(child);
-			}
-			else
-			{
-				m_root = child;
-			}
-
-			if (parent != node)
-			{
-				node->key = parent->key;
-			}
-
-			if (parent->color == Color::BLACK)
-			{
-				erase_verification(child);
-			}
-		}
-
-		void erase_verification(std::shared_ptr < Node > node) 
-		{
-			while (node != m_root && node->color == Color::BLACK) 
-			{
-				if (node == node->parent->left) 
-				{
-					auto brother = node->parent->right; // remove for higher performance
-
-					if (brother->color == Color::RED) 
-					{
-						brother->color      = Color::BLACK;
-						node->parent->color = Color::RED;
-
-						rotate_left(node->parent);
-
-						brother = node->parent->right;
-					}
-					if (brother->left->color  == Color::BLACK && 
-						brother->right->color == Color::BLACK) 
-					{
-						brother->color = Color::RED;
-
-						node = node->parent;
-					}
-					else 
-					{
-						if (brother->right->color == Color::BLACK) 
-						{
-							brother->left->color = Color::BLACK;
-							brother->color       = Color::RED;
-
-							rotate_right(brother);
-
-							brother = node->parent->right;
-						}
-
-						brother->color = node->parent->color;
-
-						node->parent->color   = Color::BLACK;
-						brother->right->color = Color::BLACK;
-
-						rotate_left(node->parent);
-
-						node = m_root;
-					}
-				}
-				else 
-				{
-					auto brother = node->parent->left; // remove for higher performance
-
-					if (brother->color == Color::RED) 
-					{
-						brother->color      = Color::BLACK;
-						node->parent->color = Color::RED;
-
-						rotate_right(node->parent);
-
-						brother = node->parent->left;
-					}
-					if (brother->right->color == Color::BLACK && 
-						brother->left->color  == Color::BLACK) 
-					{
-						brother->color = Color::RED;
-
-						node = node->parent;
-					}
-					else 
-					{
-						if (brother->left->color == Color::BLACK) 
-						{
-							brother->right->color = Color::BLACK;
-							brother->color        = Color::RED;
-
-							rotate_left(brother);
-
-							brother = node->parent->left;
-						}
-
-						brother->color = node->parent->color;
-
-						node->parent->color  = Color::BLACK;
-						brother->left->color = Color::BLACK;
-
-						rotate_right(node->parent);
-
-						node = m_root;
-					}
-				}
-			}
-
-			node->color = Color::BLACK;
+			return ((!m_root) || (m_root->color == Color::BLACK && 0 < is_valid(m_root)));
 		}
 
 	private:
 
-		void rotate_left(std::shared_ptr < Node > node) 
-		{
-			auto other = node->right;
-
-			node->right_counter = other->left_counter;
-			other->left_counter = node->right_counter + 1 + node->left_counter;
-
-			node->right = other->left;
-			node->right->parent = node;
-
-			if (!other->left->is_leaf())
-			{
-				other->left->parent = node;
-			}
-
-			other->parent = node->parent;
-
-			if (node->parent) 
-			{
-				if (node == node->parent->left)
-				{
-					node->parent->left = other;
-				}
-				else
-				{
-					node->parent->right = other;
-				}
-			}
-			else 
-			{
-				m_root = other;
-			}
-
-			other->left = node;
-
-			node->parent = other;
-		}
-
-		void rotate_right(std::shared_ptr < Node > node) 
-		{
-			auto other = node->left;
-
-			node->left_counter = other->right_counter;
-			other->right_counter = node->left_counter + 1 + node->right_counter;
-
-			node->left = other->right;
-			node->left->parent = node;
-
-			if (!other->right->is_leaf())
-			{
-				other->right->parent = node;
-			}
-
-			other->parent = node->parent;
-
-			if (node->parent) 
-			{
-				if (node == node->parent->right)
-				{
-					node->parent->right = other;
-				}
-				else
-				{
-					node->parent->left = other;
-				}	
-			}
-			else 
-			{
-				m_root = other;
-			}
-
-			other->right = node;
-
-			node->parent = other;
-		}
+		int is_valid(std::shared_ptr < Node > root) const;
 
 	private:
 
@@ -551,34 +193,465 @@ namespace initi
 		std::shared_ptr < Node > m_root = make_leaf(nullptr);
 	};
 
-	//int isRBTreeValid(std::shared_ptr < Container < int > ::Node > root) 
-	//{
-	//	int isBlack = 1, leftBlackNodes, rightBlackNodes;
-	//	// A leaf is black, leaves are NULL nodes.
-	//	if (!root)
-	//		return 1;
-	//	// The children of a red node are black
-	//	if (Container < int > ::Color::RED == root->color) {
-	//		if ((root->left && Container < int > ::Color::RED == root->left->color) ||
-	//			(root->right && Container < int > ::Color::RED == root->right->color)) {
-	//			return -1;
-	//		}
-	//		isBlack = 0;
-	//	}
-	//	if (0 > (leftBlackNodes = isRBTreeValid(root->left)))
-	//		return -1;
-	//	if (0 > (rightBlackNodes = isRBTreeValid(root->right)))
-	//		return -1;
-	//	// There must be the same number of black nodes in each path from the root to a leaf.
-	//	if (leftBlackNodes != rightBlackNodes)
-	//		return -1;
-	//	return isBlack + leftBlackNodes;
-	//}
+	template < typename T, typename Compare >
+	void Container < T, Compare > ::uninitialize(std::shared_ptr < Node > root)
+	{
+		if (root->left)
+		{
+			uninitialize(root->left);
+		}
 
-	//int isRBTreeReallyValid(std::shared_ptr < Container < int > ::Node > root) {
-	//	return (!root) ||
-	//		(Container < int > ::Color::BLACK == root->color && 0 < isRBTreeValid(root));
-	//}
+		if (root->right)
+		{
+			uninitialize(root->right);
+		}
+
+		root->parent = nullptr;
+	}
+
+	template < typename T, typename Compare >
+	std::shared_ptr < typename Container < T, Compare > ::Node > 
+		Container < T, Compare > ::search(std::size_t index, std::shared_ptr < Node > root) const
+	{
+		if (root->left_counter == index)
+		{
+			return root;
+		}
+
+		if (root->left_counter > index)
+		{
+			return search(index, root->left);
+		}
+		else
+		{
+			return search(index - root->left_counter - 1, root->right);
+		}
+	}
+
+	template < typename T, typename Compare >
+	std::shared_ptr < typename Container < T, Compare > ::Node > 
+		Container < T, Compare > ::insert(key_type key)
+	{
+		std::shared_ptr < Node > current = m_root;
+		std::shared_ptr < Node > parent = nullptr;
+
+		while (!current->is_leaf())
+		{
+			if (key == current->key)
+			{
+				return current;
+			}
+
+			parent = current;
+
+			if (m_comparator(key, current->key))
+			{
+				current = current->left;
+			}
+			else
+			{
+				current = current->right;
+			}
+		}
+
+		auto new_node = std::make_shared < Node >(key, parent);
+
+		new_node->left = make_leaf(new_node);
+		new_node->right = make_leaf(new_node);
+
+		if (parent)
+		{
+			if (m_comparator(key, parent->key))
+			{
+				parent->left = new_node;
+			}
+			else
+			{
+				parent->right = new_node;
+			}
+		}
+		else
+		{
+			m_root = new_node;
+		}
+
+		increment_counters(new_node);
+
+		insert_verification(new_node);
+
+		return new_node;
+	}
+
+	template < typename T, typename Compare >
+	void Container < T, Compare > ::increment_counters(std::shared_ptr < Node > node) const
+	{
+		if (node == m_root)
+		{
+			return;
+		}
+		else
+		{
+			if (node == node->parent->left)
+			{
+				++node->parent->left_counter;
+			}
+			else
+			{
+				++node->parent->right_counter;
+			}
+
+			increment_counters(node->parent);
+		}
+	}
+
+	template < typename T, typename Compare >
+	void Container < T, Compare > ::decrement_counters(std::shared_ptr < Node > node) const
+	{
+		if (node == m_root)
+		{
+			return;
+		}
+		else
+		{
+			if (node == node->parent->left)
+			{
+				--node->parent->left_counter;
+			}
+			else
+			{
+				--node->parent->right_counter;
+			}
+
+			decrement_counters(node->parent);
+		}
+	}
+
+	template < typename T, typename Compare >
+	void Container < T, Compare > ::insert_verification(std::shared_ptr < Node > node)
+	{
+		while (node != m_root && node->parent->color == Color::RED)
+		{
+			if (node->parent == node->parent->parent->left)
+			{
+				if (node->parent->parent->right->color == Color::RED)
+				{
+					node->parent->color = Color::BLACK;
+					node->parent->parent->right->color = Color::BLACK;
+
+					node->parent->parent->color = Color::RED;
+
+					node = node->parent->parent;
+				}
+				else
+				{
+					if (node == node->parent->right)
+					{
+						node = node->parent;
+						rotate_left(node);
+					}
+
+					node->parent->color = Color::BLACK;
+					node->parent->parent->color = Color::RED;
+
+					rotate_right(node->parent->parent);
+				}
+			}
+			else
+			{
+				if (node->parent->parent->left->color == Color::RED)
+				{
+					node->parent->color = Color::BLACK;
+					node->parent->parent->left->color = Color::BLACK;
+
+					node->parent->parent->color = Color::RED;
+
+					node = node->parent->parent;
+				}
+				else
+				{
+					if (node == node->parent->left)
+					{
+						node = node->parent;
+						rotate_right(node);
+					}
+
+					node->parent->color = Color::BLACK;
+					node->parent->parent->color = Color::RED;
+
+					rotate_left(node->parent->parent);
+				}
+			}
+		}
+
+		m_root->color = Color::BLACK;
+	}
+
+	template < typename T, typename Compare >
+	void Container < T, Compare > ::erase_implementation(std::shared_ptr < Node > node)
+	{
+		std::shared_ptr < Node > parent;
+		std::shared_ptr < Node > child;
+
+		if (node->left->is_leaf() || node->right->is_leaf())
+		{
+			parent = node;
+		}
+		else
+		{
+			parent = node->right;
+
+			while (!parent->left->is_leaf())
+			{
+				parent = parent->left;
+			}
+		}
+
+		child = (!parent->left->is_leaf() ? parent->left : parent->right);
+
+		child->parent = parent->parent;
+
+		if (parent->parent)
+		{
+			if (parent == parent->parent->left)
+			{
+				parent->parent->left = child;
+			}
+			else
+			{
+				parent->parent->right = child;
+			}
+
+			decrement_counters(child);
+		}
+		else
+		{
+			m_root = child;
+		}
+
+		if (parent != node)
+		{
+			node->key = parent->key;
+		}
+
+		if (parent->color == Color::BLACK)
+		{
+			erase_verification(child);
+		}
+	}
+
+	template < typename T, typename Compare >
+	void Container < T, Compare > ::erase_verification(std::shared_ptr < Node > node)
+	{
+		while (node != m_root && node->color == Color::BLACK)
+		{
+			if (node == node->parent->left)
+			{
+				auto brother = node->parent->right; // remove for higher performance
+
+				if (brother->color == Color::RED)
+				{
+					brother->color = Color::BLACK;
+					node->parent->color = Color::RED;
+
+					rotate_left(node->parent);
+
+					brother = node->parent->right;
+				}
+				if (brother->left->color == Color::BLACK &&
+					brother->right->color == Color::BLACK)
+				{
+					brother->color = Color::RED;
+
+					node = node->parent;
+				}
+				else
+				{
+					if (brother->right->color == Color::BLACK)
+					{
+						brother->left->color = Color::BLACK;
+						brother->color = Color::RED;
+
+						rotate_right(brother);
+
+						brother = node->parent->right;
+					}
+
+					brother->color = node->parent->color;
+
+					node->parent->color = Color::BLACK;
+					brother->right->color = Color::BLACK;
+
+					rotate_left(node->parent);
+
+					node = m_root;
+				}
+			}
+			else
+			{
+				auto brother = node->parent->left; // remove for higher performance
+
+				if (brother->color == Color::RED)
+				{
+					brother->color = Color::BLACK;
+					node->parent->color = Color::RED;
+
+					rotate_right(node->parent);
+
+					brother = node->parent->left;
+				}
+				if (brother->right->color == Color::BLACK &&
+					brother->left->color == Color::BLACK)
+				{
+					brother->color = Color::RED;
+
+					node = node->parent;
+				}
+				else
+				{
+					if (brother->left->color == Color::BLACK)
+					{
+						brother->right->color = Color::BLACK;
+						brother->color = Color::RED;
+
+						rotate_left(brother);
+
+						brother = node->parent->left;
+					}
+
+					brother->color = node->parent->color;
+
+					node->parent->color = Color::BLACK;
+					brother->left->color = Color::BLACK;
+
+					rotate_right(node->parent);
+
+					node = m_root;
+				}
+			}
+		}
+
+		node->color = Color::BLACK;
+	}
+
+	template < typename T, typename Compare >
+	void Container < T, Compare > ::rotate_left(std::shared_ptr < Node > node)
+	{
+		auto other = node->right;
+
+		node->right_counter = other->left_counter;
+		other->left_counter = node->right_counter + 1 + node->left_counter;
+
+		node->right = other->left;
+		node->right->parent = node;
+
+		if (!other->left->is_leaf())
+		{
+			other->left->parent = node;
+		}
+
+		other->parent = node->parent;
+
+		if (node->parent)
+		{
+			if (node == node->parent->left)
+			{
+				node->parent->left = other;
+			}
+			else
+			{
+				node->parent->right = other;
+			}
+		}
+		else
+		{
+			m_root = other;
+		}
+
+		other->left = node;
+
+		node->parent = other;
+	}
+
+	template < typename T, typename Compare >
+	void Container < T, Compare > ::rotate_right(std::shared_ptr < Node > node)
+	{
+		auto other = node->left;
+
+		node->left_counter = other->right_counter;
+		other->right_counter = node->left_counter + 1 + node->right_counter;
+
+		node->left = other->right;
+		node->left->parent = node;
+
+		if (!other->right->is_leaf())
+		{
+			other->right->parent = node;
+		}
+
+		other->parent = node->parent;
+
+		if (node->parent)
+		{
+			if (node == node->parent->right)
+			{
+				node->parent->right = other;
+			}
+			else
+			{
+				node->parent->left = other;
+			}
+		}
+		else
+		{
+			m_root = other;
+		}
+
+		other->right = node;
+
+		node->parent = other;
+	}
+
+	template < typename T, typename Compare >
+	int Container < T, Compare > ::is_valid(std::shared_ptr < Node > root) const
+	{
+		int is_black = 1;
+
+		int left_black_height = 0;
+		int right_black_height = 0;
+
+		if (!root)
+		{
+			return 1;
+		}
+
+		if (root->color == Color::RED)
+		{
+			if ((root->left  && root->left->color == Color::RED) ||
+				(root->right && root->right->color == Color::RED))
+			{
+				return -1;
+			}
+
+			is_black = 0;
+		}
+
+		if ((left_black_height = is_valid(root->left)) < 0)
+		{
+			return -1;
+		}
+
+		if ((right_black_height = is_valid(root->right)) < 0)
+		{
+			return -1;
+		}
+
+		if (left_black_height != right_black_height)
+		{
+			return -1;
+		}
+
+		return is_black + left_black_height;
+	}
 
 } // namespace initi
 
