@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace initi
+namespace initi // text
 {
 	class initi_exception : public std::exception // for futher development
 	{
